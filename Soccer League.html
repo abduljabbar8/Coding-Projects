@@ -1,0 +1,368 @@
+<!--Abduljabbar Said
+November 2024-->
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Soccer League Manager</title>
+  <style>
+    /* Styles for the table */
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 20px;
+        background-color: #121212;
+        color: white;
+        font-family: Arial, sans-serif;
+    }
+    th, td {
+        border: 1px solid #333;
+        padding: 10px;
+        text-align: center;
+    }
+    th {
+        background-color: #222;
+        font-weight: bold;
+    }
+    tr:nth-child(even) {
+        background-color: #1a1a1a;
+    }
+    h2, h3 {
+        color: white;
+    }
+    body {
+        background-color: #000;
+        color: white;
+        font-family: Arial, sans-serif;
+        text-align: center;
+    }
+    input, button {
+        padding: 8px;
+        margin: 5px;
+        border: none;
+        border-radius: 5px;
+    }
+    button {
+        background-color: #ff4757;
+        color: white;
+        cursor: pointer;
+    }
+    button:hover {
+        background-color: #e84118;
+    }
+</style>
+</head>
+<body>
+    <h1>Soccer League Manager</h1>
+    
+    <!-- Choosing the number of teams -->
+    <div id="setup">
+      <h2>League Setup</h2>
+      <!-- Dropdown for number of teams you want to select, 4-8 -->
+      <label for="teamCount">Select number of teams (4-8):</label>
+      <select id="teamCount">
+        <option value="4">4</option>
+        <option value="5">5</option>
+        <option value="6">6</option>
+        <option value="7">7</option>
+        <option value="8">8</option>
+      </select>
+
+      <!-- Confirm Team Number -->
+      <button id="selectTeamCount">Next</button>
+    </div>
+  
+    <!-- Input Team Names -->
+    <div id="teamNames" style="display:none;">
+      <h2>Enter Team Names</h2>
+      <form id="teamNamesForm">
+        <div id="teamNamesInputs"></div>
+        <button type="submit">Create League</button>
+      </form>
+    </div>
+  
+    <!-- Schedule and Table is displayed -->
+    <div id="league" style="display:none;">
+      <h2>League Schedule</h2>
+      <div id="schedule"></div>
+      <h2>League Table</h2>
+      <!-- Specific stats being tracked in the leeague table -->
+      <table id="leagueTable">
+        <thead>
+          <tr>
+            <th>Team</th>
+            <th>Played</th>
+            <th>Wins</th>
+            <th>Draws</th>
+            <th>Losses</th>
+            <!--Goals Scored, Concieded, Difference like a typical league table like Ameteur to Pro Leagues -->
+            
+            <th>GF</th>
+            <th>GA</th>
+            <th>GD</th>
+            <th>Points</th>
+          </tr>
+        </thead>
+        <tbody id="leagueTableBody"></tbody>
+      </table>
+    </div>
+  
+    <script>
+      // Global arrays to hold teams, schedule, and the match results.
+      let teams = [];       
+      let schedule = [];    
+      let results = [];     
+    
+
+      // When the user clicks "Next" to choose the number of teams.
+      document.getElementById('selectTeamCount').addEventListener('click', function(){
+
+        // Get the number of teams selected by the user.
+        const teamCount = parseInt(document.getElementById('teamCount').value);
+        // Reference to the container for team name input fields.
+        const teamNamesInputs = document.getElementById('teamNamesInputs');
+        teamNamesInputs.innerHTML = ''; 
+        
+        // Creates input fields for each of the teams names.
+        for(let i = 0; i < teamCount; i++){
+          const input = document.createElement('input');
+          input.type = 'text';
+          input.placeholder = 'Team ' + (i+1) + ' Name';
+          input.required = true;
+          input.name = 'team' + i;
+          teamNamesInputs.appendChild(input);
+          // Adding a line break after each input
+          teamNamesInputs.appendChild(document.createElement('br'));
+        }
+        
+        // Hide the setup div and show the team names form.
+        document.getElementById('setup').style.display = 'none';
+        document.getElementById('teamNames').style.display = 'block';
+      });
+  
+       /**
+        * CREATING THE SCHEDULE AND FORMATTING THE TABLE
+        * 
+        * @param {Array} teamNames - Array of team names.
+        * @return {Array} schedule - Array of rounds, each containing match objects.
+       */
+      function generateSchedule(teamNames) {
+        const n = teamNames.length;
+
+        // Create a copy of team names to manipulate.
+        let teamsCopy = teamNames.slice();
+        // If odd number of teams, add a "BYE" placeholder.
+        const isOdd = (n % 2 !== 0);
+        if(isOdd) {
+          teamsCopy.push("BYE");
+        }
+
+        // Ensure even number of teams.
+        const totalTeams = teamsCopy.length; 
+        // Number of rounds in a round-robin.
+        const rounds = totalTeams - 1; 
+        const schedule = [];
+  
+        // Loop through each round.
+        for(let round = 0; round < rounds; round++){
+          let roundMatches = [];
+          // Generate matches for this round.
+          for(let i = 0; i < totalTeams / 2; i++){
+            let teamA = teamsCopy[i];
+            let teamB = teamsCopy[totalTeams - 1 - i];
+            // If one team is "BYE", skip adding this match.
+            if(teamA === "BYE" || teamB === "BYE") continue;
+            // Create a match with placeholder scores.
+            roundMatches.push({teamA, teamB, week: round+1, scoreA: null, scoreB: null});
+          }
+          // Add the round style matches to the schedule.
+          schedule.push(roundMatches);
+          // Rotate teams for the next round (keeping the first team in place).
+          teamsCopy.splice(1, 0, teamsCopy.pop());
+        }
+        return schedule;
+      }
+  
+      /**
+       * UPDATING THE LEAGUE TABLE
+       * Calculates games played, wins, draws, losses, goals for (socred), goals against (conceided),
+       * goal difference, and points for each team.
+       */
+      
+      function updateLeagueTable() {
+        // Initializing standings for each team being at zero. 
+        const standings = {};
+        teams.forEach(team => {
+          standings[team] = { played: 0, wins: 0, draws: 0, losses: 0, GF: 0, GA: 0, GD: 0, points: 0 };
+        });
+        
+        // Process each match result to update standings.
+        results.forEach(match => {
+          // Skip match if scores haven't been entered yet.
+          if(match.scoreA === null || match.scoreB === null) return;
+          // Increment games played for both teams.
+          standings[match.teamA].played++;
+          standings[match.teamB].played++;
+          // Update goals for and against.
+          standings[match.teamA].GF += match.scoreA;
+          standings[match.teamA].GA += match.scoreB;
+          standings[match.teamB].GF += match.scoreB;
+          standings[match.teamB].GA += match.scoreA;
+          
+          // Determine match outcome and update wins/draws/losses and points.
+          if(match.scoreA > match.scoreB) {
+            standings[match.teamA].wins++;
+            standings[match.teamB].losses++;
+            standings[match.teamA].points += 3;
+          } else if(match.scoreA < match.scoreB) {
+            standings[match.teamB].wins++;
+            standings[match.teamA].losses++;
+            standings[match.teamB].points += 3;
+          } else {
+            standings[match.teamA].draws++;
+            standings[match.teamB].draws++;
+            standings[match.teamA].points += 1;
+            standings[match.teamB].points += 1;
+          }
+        });
+        
+        // Calculate goal difference for each team.
+        teams.forEach(team => {
+          standings[team].GD = standings[team].GF - standings[team].GA;
+        });
+        
+        // Sort teams by points, then goal difference, then goals for, etc.
+        const sortedTeams = teams.slice().sort((a, b) => {
+          if(standings[b].points !== standings[a].points){
+            return standings[b].points - standings[a].points;
+          } else if(standings[b].GD !== standings[a].GD){
+            return standings[b].GD - standings[a].GD;
+          } else {
+            return standings[b].GF - standings[a].GF;
+          }
+        });
+        
+        // Rebuild the league table with sorted teams.
+        const tableBody = document.getElementById('leagueTableBody');
+        // Clear existing table content
+        tableBody.innerHTML = ''; 
+        sortedTeams.forEach(team => {
+          const row = document.createElement('tr');
+          row.innerHTML = `<td>${team}</td>
+                           <td>${standings[team].played}</td>
+                           <td>${standings[team].wins}</td>
+                           <td>${standings[team].draws}</td>
+                           <td>${standings[team].losses}</td>
+                           <td>${standings[team].GF}</td>
+                           <td>${standings[team].GA}</td>
+                           <td>${standings[team].GD}</td>
+                           <td>${standings[team].points}</td>`;
+          tableBody.appendChild(row);
+        });
+      }
+  
+      /**
+       * Function: createScheduleDisplay
+       * Generates the visual schedule for the league.
+       * Each round (week) is displayed with its matches and input fields for scores.
+       */
+      function createScheduleDisplay() {
+        // Reference to the schedule container.
+        const scheduleDiv = document.getElementById('schedule');
+        // Clear any previous content
+        scheduleDiv.innerHTML = ''; 
+        
+        // Loop through each round in the schedule.
+        schedule.forEach((roundMatches, roundIndex) => {
+          // Create a container for the round.
+          const roundDiv = document.createElement('div');
+          roundDiv.className = 'round';
+          // Heading for the week(matchday).
+          const heading = document.createElement('h3');
+          heading.textContent = 'Week ' + (roundIndex+1);
+          roundDiv.appendChild(heading);
+          
+          // Loop through each match in the round.
+          roundMatches.forEach(match => {
+            // Add match to the global results array.
+            results.push(match);
+            // Get the current match index
+            const matchIndex = results.length - 1;  
+            
+            // Create a container for the match.
+            const matchDiv = document.createElement('div');
+            matchDiv.className = 'match';
+            // Store the match index as a data attribute for later reference.
+            matchDiv.dataset.matchIndex = matchIndex;
+            // Build HTML for the match: team names, score inputs, and update button.
+            matchDiv.innerHTML = `<span>${match.teamA} vs ${match.teamB}</span>
+                                  Score: <input type="number" min="0" class="scoreA" placeholder="0">
+                                  - <input type="number" min="0" class="scoreB" placeholder="0">
+                                  <button class="updateScore">Update</button>`;
+            // Append the match container to the round.
+            roundDiv.appendChild(matchDiv);
+          });
+          
+          // Append the round container to the schedule container.
+          scheduleDiv.appendChild(roundDiv);
+        });
+        
+        // Add event listeners to each of the "Update" button for updating match scores.
+        document.querySelectorAll('.updateScore').forEach(button => {
+          button.addEventListener('click', function(){
+            // Get the parent match div.
+            const matchDiv = this.parentElement;
+            // Retrieve the match index from the data attribute.
+            const index = matchDiv.dataset.matchIndex;
+            // Get the score inputs.
+            const scoreAInput = matchDiv.querySelector('.scoreA');
+            const scoreBInput = matchDiv.querySelector('.scoreB');
+            // Analyze input values as integers.
+            const scoreA = parseInt(scoreAInput.value);
+            const scoreB = parseInt(scoreBInput.value);
+            
+            // Validate that both scores are entered.
+            if(isNaN(scoreA) || isNaN(scoreB)){
+              alert("Please enter valid scores for both teams.");
+              return;
+            }
+            // Update the match result in the global results array.
+            results[index].scoreA = scoreA;
+            results[index].scoreB = scoreB;
+            // Recalculate and update the league table.
+            updateLeagueTable();
+          });
+        });
+      }
+  
+      // Process the team names form submission to initialize the league.
+      document.getElementById('teamNamesForm').addEventListener('submit', function(e){
+        // Prevent the default form submission behavior.
+        e.preventDefault(); 
+        const formData = new FormData(this);
+        // Reset teams array.
+        teams = []; 
+        
+        // Retrieve team names from the form data.
+        for(let [key, value] of formData.entries()){
+          if(value.trim() === ''){
+            alert("Please enter all team names.");
+            return;
+          }
+          teams.push(value.trim());
+        }
+        
+        // Generate the schedule using the round-robin algorithm.
+        schedule = generateSchedule(teams);
+        
+        // Hide the team names form and display the league interface.
+        document.getElementById('teamNames').style.display = 'none';
+        document.getElementById('league').style.display = 'block';
+        
+        // Build the schedule display and initialize the league table.
+        createScheduleDisplay();
+        updateLeagueTable();
+      });
+    </script>
+  </body>
+</html>
